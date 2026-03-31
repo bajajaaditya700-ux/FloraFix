@@ -1,0 +1,228 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: userId
+// Fields:
+//   - uid: string (required)
+//   - displayName: string
+//   - email: string (required)
+//   - photoURL: string
+//   - createdAt: timestamp (required)
+//
+// Collection: scans
+// Document ID: scanId
+// Fields:
+//   - userId: string (required)
+//   - imageUrl: string
+//   - plantName: string (required)
+//   - isHealthy: bool (required)
+//   - diseaseName: string
+//   - severity: string (Low, Moderate, High)
+//   - symptoms: list<string>
+//   - treatment: string
+//   - careTips: list<string>
+//   - timestamp: timestamp (required)
+//
+// Collection: scans/{scanId}/logs
+// Document ID: logId
+// Fields:
+//   - scanId: string (required)
+//   - userId: string (required)
+//   - action: string (required)
+//   - observation: string
+//   - timestamp: timestamp (required)
+//
+// Collection: scans/{scanId}/messages
+// Document ID: messageId
+// Fields:
+//   - role: string (user, model) (required)
+//   - text: string (required)
+//   - timestamp: timestamp (required)
+//
+// Collection: posts
+// Document ID: postId
+// Fields:
+//   - authorId: string (required)
+//   - authorName: string
+//   - authorPhoto: string
+//   - title: string (required)
+//   - content: string (required)
+//   - imageUrl: string
+//   - plantType: string
+//   - category: string (Question, Advice, Showcase) (required)
+//   - upvotes: int
+//   - upvotedBy: list<string>
+//   - timestamp: timestamp (required)
+//
+// Collection: posts/{postId}/comments
+// Document ID: commentId
+// Fields:
+//   - postId: string (required)
+//   - authorId: string (required)
+//   - authorName: string
+//   - content: string (required)
+//   - timestamp: timestamp (required)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+    
+    function isPostAuthor() {
+      return isAuthenticated() && request.auth.uid == resource.data.authorId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (request.auth.token.email == "bajajaaditya700@gmail.com" && request.auth.token.email_verified == true);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidString(field, min, max) {
+      return request.resource.data[field] is string && 
+             request.resource.data[field].size() >= min && 
+             request.resource.data[field].size() <= max;
+    }
+
+    function isValidList(field, max) {
+      return request.resource.data[field] is list && 
+             request.resource.data[field].size() <= max;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'displayName', 'email', 'photoURL', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.email is string &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidScan(data) {
+      return hasOnlyAllowedFields(['userId', 'imageUrl', 'plantName', 'isHealthy', 'diseaseName', 'severity', 'symptoms', 'treatment', 'careTips', 'timestamp']) &&
+             data.userId == request.auth.uid &&
+             data.plantName is string && data.plantName.size() > 0 && data.plantName.size() < 100 &&
+             data.isHealthy is bool &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidLog(data) {
+      return hasOnlyAllowedFields(['scanId', 'userId', 'action', 'observation', 'timestamp']) &&
+             data.userId == request.auth.uid &&
+             data.action is string && data.action.size() > 0 && data.action.size() < 200 &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidPost(data) {
+      return hasOnlyAllowedFields(['authorId', 'authorName', 'authorPhoto', 'title', 'content', 'imageUrl', 'plantType', 'category', 'upvotes', 'upvotedBy', 'timestamp']) &&
+             data.authorId == request.auth.uid &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.content is string && data.content.size() > 0 && data.content.size() < 5000 &&
+             data.category in ['Question', 'Advice', 'Showcase'] &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidComment(data) {
+      return hasOnlyAllowedFields(['postId', 'authorId', 'authorName', 'content', 'timestamp']) &&
+             data.authorId == request.auth.uid &&
+             data.content is string && data.content.size() > 0 && data.content.size() < 1000 &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidMessage(data) {
+      return hasOnlyAllowedFields(['role', 'text', 'timestamp']) &&
+             data.role in ['user', 'model'] &&
+             data.text is string && data.text.size() > 0 && data.text.size() < 5000 &&
+             data.timestamp is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
+                      request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    match /scans/{scanId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidScan(request.resource.data);
+      allow update: if isDocOwner() && isValidScan(request.resource.data) &&
+                      request.resource.data.timestamp == resource.data.timestamp;
+      allow delete: if isDocOwner() || isAdmin();
+
+      match /logs/{logId} {
+        allow read: if isOwner(get(/databases/$(database)/documents/scans/$(scanId)).data.userId) || isAdmin();
+        allow create: if isAuthenticated() && isValidLog(request.resource.data) && 
+                        request.resource.data.scanId == scanId;
+        allow update: if isOwner(resource.data.userId) && isValidLog(request.resource.data) &&
+                        request.resource.data.timestamp == resource.data.timestamp;
+        allow delete: if isOwner(resource.data.userId) || isAdmin();
+      }
+
+      match /messages/{messageId} {
+        allow read: if isDocOwner() || isAdmin();
+        allow create: if isDocOwner() && isValidMessage(request.resource.data);
+      }
+    }
+
+    match /posts/{postId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidPost(request.resource.data);
+      allow update: if (isPostAuthor() && isValidPost(request.resource.data) && 
+                        request.resource.data.timestamp == resource.data.timestamp &&
+                        request.resource.data.upvotes == resource.data.upvotes &&
+                        request.resource.data.upvotedBy == resource.data.upvotedBy) ||
+                      (isAuthenticated() && 
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes', 'upvotedBy']) &&
+                        (
+                          (request.resource.data.upvotes == resource.data.upvotes + 1 && 
+                           ! (request.auth.uid in resource.data.upvotedBy) && 
+                           request.auth.uid in request.resource.data.upvotedBy) ||
+                          (request.resource.data.upvotes == resource.data.upvotes - 1 && 
+                           request.auth.uid in resource.data.upvotedBy)
+                        ));
+      allow delete: if isPostAuthor() || isAdmin();
+
+      match /comments/{commentId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && isValidComment(request.resource.data) &&
+                        request.resource.data.postId == postId;
+        allow update: if isOwner(resource.data.authorId) && isValidComment(request.resource.data) &&
+                        request.resource.data.timestamp == resource.data.timestamp;
+        allow delete: if isOwner(resource.data.authorId) || isAdmin();
+      }
+    }
+  }
+}

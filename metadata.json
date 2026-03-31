@@ -1,0 +1,5 @@
+{
+  "name": "FloraFix",
+  "description": "AI-powered plant disease scanner and care assistant.",
+  "requestFramePermissions": ["camera"]
+}

@@ -1,0 +1,99 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the FloraFix app.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique ID of the user." },
+        "displayName": { "type": "string", "description": "The user's display name." },
+        "email": { "type": "string", "description": "The user's email address." },
+        "photoURL": { "type": "string", "description": "The user's profile photo URL." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the user account was created." }
+      },
+      "required": ["uid", "email"]
+    },
+    "PlantScan": {
+      "title": "PlantScan",
+      "description": "A record of a plant scan and its analysis.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The ID of the user who performed the scan." },
+        "imageUrl": { "type": "string", "description": "The URL of the scanned plant image (or base64 for now)." },
+        "plantName": { "type": "string" },
+        "isHealthy": { "type": "boolean" },
+        "diseaseName": { "type": "string" },
+        "severity": { "type": "string", "enum": ["Low", "Moderate", "High"] },
+        "symptoms": { "type": "array", "items": { "type": "string" } },
+        "treatment": { "type": "string" },
+        "careTips": { "type": "array", "items": { "type": "string" } },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "plantName", "isHealthy", "timestamp"]
+    },
+    "TreatmentLog": {
+      "title": "TreatmentLog",
+      "description": "A log entry for a plant's treatment.",
+      "type": "object",
+      "properties": {
+        "scanId": { "type": "string", "description": "The ID of the associated PlantScan." },
+        "userId": { "type": "string" },
+        "action": { "type": "string", "description": "The action taken (e.g., watering, fertilizing)." },
+        "observation": { "type": "string", "description": "Notes about the plant's condition." },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["scanId", "userId", "action", "timestamp"]
+    },
+    "ForumPost": {
+      "title": "ForumPost",
+      "description": "A post in the community forum.",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorPhoto": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "plantType": { "type": "string" },
+        "category": { "type": "string", "enum": ["Question", "Advice", "Showcase"] },
+        "upvotes": { "type": "integer" },
+        "upvotedBy": { "type": "array", "items": { "type": "string" } },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["authorId", "title", "content", "category", "timestamp"]
+    },
+    "ForumComment": {
+      "title": "ForumComment",
+      "description": "A comment on a forum post.",
+      "type": "object",
+      "properties": {
+        "postId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["postId", "authorId", "content", "timestamp"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "A message in a chat with the Plant Doctor.",
+      "type": "object",
+      "properties": {
+        "role": { "type": "string", "enum": ["user", "model"] },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["role", "text", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "User profiles." },
+    "/scans/{scanId}": { "schema": "PlantScan", "description": "Plant scan records." },
+    "/scans/{scanId}/logs/{logId}": { "schema": "TreatmentLog", "description": "Treatment logs for a specific scan." },
+    "/scans/{scanId}/messages/{messageId}": { "schema": "ChatMessage", "description": "Chat messages with the Plant Doctor for a specific scan." },
+    "/posts/{postId}": { "schema": "ForumPost", "description": "Community forum posts." },
+    "/posts/{postId}/comments/{commentId}": { "schema": "ForumComment", "description": "Comments on forum posts." }
+  }
+}
